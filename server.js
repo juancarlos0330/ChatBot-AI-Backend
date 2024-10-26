@@ -84,6 +84,7 @@ const getAIResponse = async (message) => {
       {
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${require("./config/keys").openAIAPIKey}`,
         },
       }
     );
