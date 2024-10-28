@@ -9,6 +9,7 @@ const axios = require("axios");
 
 const users = require("./api/users");
 const chats = require("./api/chats");
+const admin = require("./api/admin");
 
 const messageSave = require("./actions/chats");
 
@@ -48,6 +49,7 @@ app.use(passport.initialize());
 // Use Routes
 app.use("/api/users", users);
 app.use("/api/chats", chats);
+app.use("/api/admin", admin);
 
 const port = process.env.PORT || require("./config/keys").port;
 
@@ -55,16 +57,49 @@ app.get("/", (req, res) => {
   res.json({ msg: `Server is running on ${port} for ChatBotAI.` });
 });
 
+// Store users and their respective sockets
+const userlist = {};
+
 // socket server part
 io.on("connection", (socket) => {
   console.log("New user connected");
+
+  socket.on("userJoined", (email) => {
+    userlist[email] = socket.id;
+    console.log(email, " joined");
+  });
+
+  socket.on("private-message", ({ receiverEmail, message }) => {
+    const receiverSocketId = userlist[receiverEmail];
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("private-message", {
+        flag: false,
+        message,
+        email: receiverEmail,
+        botFlag: false,
+      });
+    }
+  });
 
   socket.on("sendMessage", async (message) => {
     const result = await messageSave(message);
     if (result === "success") {
       const aiResponse = await getAIResponse(message.message);
 
-      if (!aiResponse) {
+      if (aiResponse.includes(" sorry") || aiResponse.includes(" apologize")) {
+        const receiverMessage = {
+          flag: false,
+          message:
+            "I'm sorry if my response was incorrect. Let me contact to support team so they will provide a better response.",
+          email: message.email,
+          botFlag: false,
+        };
+
+        // save the receiver message in db
+        const result = await messageSave(receiverMessage);
+
+        socket.emit("receiveMessage", receiverMessage);
+
         notifySupportTeam(message, socket.id);
       } else {
         const receiverMessage = {
@@ -73,6 +108,7 @@ io.on("connection", (socket) => {
           email: message.email,
           botFlag: true,
         };
+
         // save the receiver message in db
         const result = await messageSave(receiverMessage);
 
