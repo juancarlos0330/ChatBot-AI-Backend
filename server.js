@@ -139,7 +139,11 @@ io.on("connection", (socket) => {
           // notify the message to admin
           const result = await notifyToAdmin(message.email);
           if (result === "success") {
-            // socket.emit("notifyToAdmin")
+            if (receiverSocketId) {
+              io.to(receiverSocketId).emit("notifyToAdmin", "update");
+            } else {
+              console.log("Admin is not exist!");
+            }
           } else {
             console.log("An error occurred while notify to admin!");
           }

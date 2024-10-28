@@ -59,4 +59,25 @@ router.post("/signin", (req, res) => {
   });
 });
 
+// @route   POST api/users/updateNotifyCount
+// @desc    Update the notify count
+// @access  Public
+router.post("/updateNotifyCount", (req, res) => {
+  User.findOneAndUpdate(
+    {
+      email: req.body.email,
+    },
+    { $set: { notifyCount: 0 } },
+    { new: true }
+  )
+    .then((user) => {
+      res.json({
+        success: true,
+      });
+    })
+    .catch((err) => {
+      console.log(err);
+    });
+});
+
 module.exports = router;
