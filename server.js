@@ -8,6 +8,9 @@ const socketIo = require("socket.io");
 const axios = require("axios");
 
 const users = require("./api/users");
+const chats = require("./api/chats");
+
+const messageSave = require("./actions/chats");
 
 const app = express();
 
@@ -44,6 +47,7 @@ app.use(passport.initialize());
 
 // Use Routes
 app.use("/api/users", users);
+app.use("/api/chats", chats);
 
 const port = process.env.PORT || require("./config/keys").port;
 
@@ -56,15 +60,30 @@ io.on("connection", (socket) => {
   console.log("New user connected");
 
   socket.on("sendMessage", async (message) => {
-    const aiResponse = await getAIResponse(message.message);
+    const result = await messageSave(message);
+    if (result === "success") {
+      const aiResponse = await getAIResponse(message.message);
 
-    if (!aiResponse) {
-      notifySupportTeam(message, socket.id);
+      if (!aiResponse) {
+        notifySupportTeam(message, socket.id);
+      } else {
+        const receiverMessage = {
+          flag: false,
+          message: aiResponse,
+          email: message.email,
+          botFlag: true,
+        };
+        // save the receiver message in db
+        const result = await messageSave(receiverMessage);
+
+        if (result === "success") {
+          socket.emit("receiveMessage", receiverMessage);
+        } else {
+          console.log("An error occurred!");
+        }
+      }
     } else {
-      socket.emit("receiveMessage", {
-        flag: false,
-        message: aiResponse,
-      });
+      console.log("An error occurred!");
     }
   });
 
@@ -88,7 +107,6 @@ const getAIResponse = async (message) => {
         },
       }
     );
-    console.log(response.data);
     return response.data.choices[0].message.content;
   } catch (err) {
     console.error(err);

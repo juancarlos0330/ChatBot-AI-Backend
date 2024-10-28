@@ -9,14 +9,13 @@ const User = require("../models/User");
 // @route   POST api/users/sign
 // @desc    Sign or Check user
 // @access  Public
-router.post("/sign", (req, res) => {
-  User.findOne({ address: req.body.address }).then((user) => {
+router.post("/signin", (req, res) => {
+  User.findOne({ email: req.body.email }).then((user) => {
     if (user) {
       // User Matched
       const payload = {
         id: user.id,
         email: user.email,
-        name: user.name,
         created_at: user.created_at,
       }; // Create JWT Payload
 
@@ -29,8 +28,7 @@ router.post("/sign", (req, res) => {
       });
     } else {
       const newUser = new User({
-        address: req.body.email,
-        name: req.body.name,
+        email: req.body.email,
       });
 
       newUser
@@ -40,7 +38,6 @@ router.post("/sign", (req, res) => {
           const payload = {
             id: newuser.id,
             email: newuser.email,
-            name: newuser.name,
             created_at: newuser.created_at,
           }; // Create JWT Payload
 
