@@ -12,6 +12,7 @@ const chats = require("./api/chats");
 const admin = require("./api/admin");
 
 const messageSave = require("./actions/chats");
+const notifyToAdmin = require("./actions/users");
 
 const app = express();
 
@@ -69,20 +70,48 @@ io.on("connection", (socket) => {
     console.log(email, " joined");
   });
 
-  socket.on("private-message", ({ receiverEmail, message }) => {
-    const receiverSocketId = userlist[receiverEmail];
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("private-message", {
-        flag: false,
+  socket.on(
+    "private-message",
+    async ({ flag, receiverEmail, message, email, botFlag }) => {
+      const receiverSocketId = userlist[receiverEmail];
+      const result = await messageSave({
+        flag: receiverEmail === "admin@admin.com" ? true : false,
         message,
-        email: receiverEmail,
-        botFlag: false,
+        email,
+        botFlag,
       });
+
+      if (result === "success") {
+        if (receiverSocketId) {
+          const messageData = {
+            flag: receiverEmail === "admin@admin.com" ? true : false,
+            message,
+            email,
+            botFlag,
+          };
+          io.to(receiverSocketId).emit("private-message", messageData);
+        } else {
+          console.log("An error occurred!");
+        }
+      } else {
+        console.log("An error occurred!");
+      }
     }
-  });
+  );
 
   socket.on("sendMessage", async (message) => {
     const result = await messageSave(message);
+    const receiverSocketId = userlist["admin@admin.com"];
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("private-message", {
+        flag: true,
+        message: message.message,
+        email: message.email,
+        botFlag: true,
+      });
+    } else {
+      console.log("Admin is not exist!");
+    }
     if (result === "success") {
       const aiResponse = await getAIResponse(message.message);
 
@@ -98,9 +127,25 @@ io.on("connection", (socket) => {
         // save the receiver message in db
         const result = await messageSave(receiverMessage);
 
-        socket.emit("receiveMessage", receiverMessage);
+        if (result === "success") {
+          if (receiverSocketId) {
+            io.to(receiverSocketId).emit("private-message", receiverMessage);
+          } else {
+            console.log("Admin is not exist!");
+          }
 
-        notifySupportTeam(message, socket.id);
+          socket.emit("receiveMessage", receiverMessage);
+
+          // notify the message to admin
+          const result = await notifyToAdmin(message.email);
+          if (result === "success") {
+            // socket.emit("notifyToAdmin")
+          } else {
+            console.log("An error occurred while notify to admin!");
+          }
+        } else {
+          console.log("An error occurred!");
+        }
       } else {
         const receiverMessage = {
           flag: false,
@@ -113,6 +158,14 @@ io.on("connection", (socket) => {
         const result = await messageSave(receiverMessage);
 
         if (result === "success") {
+          const receiverSocketId = userlist["admin@admin.com"];
+
+          if (receiverSocketId) {
+            io.to(receiverSocketId).emit("private-message", receiverMessage);
+          } else {
+            console.log("Admin is not exist!");
+          }
+
           socket.emit("receiveMessage", receiverMessage);
         } else {
           console.log("An error occurred!");
@@ -148,13 +201,6 @@ const getAIResponse = async (message) => {
     console.error(err);
     return null;
   }
-};
-
-const notifySupportTeam = (message, socketId) => {
-  // Logic to notify support team (could send a message in a support dashboard or email)
-  console.log(
-    `Support needed for message: ${message} from user with socket ID: ${socketId}`
-  );
 };
 
 server.listen(port, () => console.log(`Server running on port ${port}`));

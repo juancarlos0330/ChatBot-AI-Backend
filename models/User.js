@@ -7,6 +7,10 @@ const UserSchema = new Schema({
     type: String,
     required: true,
   },
+  notifyCount: {
+    type: Number,
+    default: 0,
+  },
   created_at: {
     type: Date,
     default: Date.now,
